@@ -1,26 +1,75 @@
 from django.shortcuts import render
 
+
 # Create your views here.
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status
 from django.http import JsonResponse
-
-@api_view(['GET', 'POST'])
-def recipe_view(request):
-    if request.method == 'GET':
-        return Response({"message": "List of recipes"}, status=status.HTTP_200_OK)
-
-    elif request.method == 'POST':
-        data = request.data
-        return Response({"message": "Recipe created", "data": data}, status=status.HTTP_201_CREATED)
-    
-
 from recipe_scrapers import scrape_html
 from requests.exceptions import RequestException
 from urllib.request import urlopen
 import requests
+from .serializers import RecipeSerializer
+from .models import Recipe
+ 
+# Get all recipes 
+@api_view(['GET'])
+def get_recipes(request):
+    recipes = Recipe.objects.all()
+    serializer = RecipeSerializer(recipes, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
+
+# Get a single recipe
+@api_view(['GET'])
+def get_recipe(request, id):
+    try:
+        recipe = Recipe.objects.get(id=id)
+    except Recipe.DoesNotExist:
+        return Response({"message": "Recipe not found"}, status=status.HTTP_404_NOT_FOUND)
+    serializer = RecipeSerializer(recipe)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# Add Recipe
+@api_view(['POST'])
+def add_recipe(request):
+    serializer = RecipeSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# Add a new recipe
+@api_view(['PUT', 'PATCH'])
+def update_recipe(request, id):
+    try:
+        recipe = Recipe.objects.get(id=id)
+    except Recipe.DoesNotExist:
+        return Response({"message": "Recipe not found"}, status=status.HTTP_404_NOT_FOUND)
+    # partial=True allows partial updates (PATCH)
+    serializer = RecipeSerializer(recipe, data=request.data, partial=True)  
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+#Delete a Recipe
+@api_view(['DELETE'])
+def delete_recipe(request, id):
+    try:
+        recipe = Recipe.objects.get(id=id)
+        recipe.delete()
+        return Response({"message": "Recipe deleted"}, status=status.HTTP_204_NO_CONTENT)
+    except Recipe.DoesNotExist:
+        return Response({"message": "Recipe not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+
+# Scrape recipe with given url
 @api_view(['GET'])
 def scrape_recipe_view(request):
     url = request.query_params.get('url')
