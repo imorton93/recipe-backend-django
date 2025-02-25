@@ -39,11 +39,15 @@ def get_recipe(request, id):
 # Add Recipe
 @api_view(['POST'])
 def add_recipe(request):
-    category_ids = request.data.pop('categories', []) #get category IDs
     serializer = RecipeSerializer(data=request.data)
     if serializer.is_valid():
         recipe = serializer.save()
+
+        #set the categories
+        category_ids = request.data.get('categories', [])
+        categories = Category.objects.filter(id__in=category_ids)
         recipe.categories.set(category_ids)
+        
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -57,26 +61,20 @@ def update_recipe(request, id):
         return Response({"message": "Recipe not found"}, status=status.HTTP_404_NOT_FOUND)
     # partial=True allows partial updates (PATCH)
 
-    logger.debug(f"Received data: {request.data}")
-
     serializer = RecipeSerializer(recipe, data=request.data, partial=True)  
     if serializer.is_valid():
-        
-        logger.debug(f"Serializer data is valid, saving recipe with data: {serializer.validated_data}")
+
         serializer.save()
 
         category_ids = request.data.get('categories', [])
-        logger.debug(f"Categories received: {category_ids}")
 
         try:
             categories = Category.objects.filter(id__in=category_ids)
             recipe.categories.set(categories)
-            logger.debug(f"Categories updated successfully: {categories}")
         except Exception as e:
             logger.error(f"Error updating categories: {str(e)}")
 
         return Response(serializer.data, status=status.HTTP_200_OK)
-    logger.error(f"Serializer errors: {serializer.errors}")
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -136,40 +134,19 @@ def get_categories(request):
     serializer = CategorySerializer(categories, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
-# Get a single category
-@api_view(['GET'])
-def get_category(request, id):
-    try:
-        category = Category.objects.get(id=id)
-    except Category.DoesNotExist:
-        return Response({"message": "category not found"}, status=status.HTTP_404_NOT_FOUND)
-    
-    serializer = CategorySerializer(category)
-    return Response(serializer.data, status=status.HTTP_200_OK)
 
-# Add a new category
-@api_view(['POST'])
-def add_category(request):
-    serializer = CategorySerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+@api_view(['PUT'])
+def update_categories(request):
+    categories_data = request.data
+    for category in categories_data:
+        if 'id' in category and category['id']:
+            obj = Category.objects.get(id=category['id'])
+            obj.name = category['name']
+            obj.save()
+        else:
+            Category.objects.create(name=category['name'])
+    return Response({"message": "Categories updated successfully"}, status=status.HTTP_200_OK)
 
-# Update a category
-@api_view(['PUT', 'PATCH'])
-def update_Category(request, id):
-    try:
-        category = Category.objects.get(id=id)
-    except Category.DoesNotExist:
-        return Response({"message": "category not found"}, status=status.HTTP_404_NOT_FOUND)
-
-    serializer = CategorySerializer(category, data=request.data, partial=True)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # Delete a category
 @api_view(['DELETE'])
@@ -177,6 +154,8 @@ def delete_category(request, id):
     try:
         category = Category.objects.get(id=id)
         category.delete()
-        return Response({"message": "category deleted"}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"message": "category deleted"}, status=status.HTTP_200_OK)
     except Category.DoesNotExist:
         return Response({"message": "category not found"}, status=status.HTTP_404_NOT_FOUND)
+    
+
