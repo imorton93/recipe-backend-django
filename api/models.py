@@ -29,6 +29,7 @@ class Recipe(models.Model):
     website = models.URLField(max_length=2083, blank=True, null=True)
     mealType = models.CharField(max_length=50, choices=MEAL_TYPE_CHOICES, default='Dinner')
     categories = models.ManyToManyField(Category, related_name="recipes")
+    favorite = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
